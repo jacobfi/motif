@@ -1,5 +1,18 @@
 package io.notelang.dsl
 
+object Accidental {
+
+  def parse(s: String): Option[Accidental] = s match {
+    case "#" => Some(Sharp)
+    case "##" => Some(DoubleSharp)
+    case "b" => Some(Flat)
+    case "bb" => Some(DoubleFlat)
+    case "!" => Some(Natural)
+    case _ => None
+  }
+
+}
+
 sealed trait Accidental {
 
   def value: Int = this match {

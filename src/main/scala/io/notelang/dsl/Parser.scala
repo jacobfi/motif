@@ -2,47 +2,49 @@ package io.notelang.dsl
 
 import scala.util.parsing.combinator._
 
-sealed trait Token
+sealed trait Statement
 
-case class Note(symbol: Char, accidental: Option[Accidental]) extends Token
+sealed trait Expr
 
-case object Rest extends Token
+case class Note(symbol: Char, accidental: Option[Accidental]) extends Expr
 
-case class Duration(token: Token, power: Int, dots: Int) extends Token
+case object Rest extends Expr
 
-case class Octave(token: Token, value: Int) extends Token
+case class Duration(expr: Expr, power: Int, dots: Int) extends Expr
 
-case class Fragment(tokens: Seq[Token]) extends Token
+case class Octave(expr: Expr, value: Int) extends Expr
 
-case class Harmony(tokens: Seq[Token]) extends Token
+case class Fragment(exprs: Seq[Expr]) extends Expr
 
-case class Segment(tokens: Seq[Token]) extends Token
+case class Harmony(exprs: Seq[Expr]) extends Expr
 
-case class Scale(root: Note, token: Token) extends Token
+case class Segment(exprs: Seq[Expr]) extends Expr
+
+case class Scale(root: Note, expr: Expr) extends Expr
+
+case class Chord(suffix: String, f: Note => Scale) extends Statement
+
+case class ChordRef(note: Note, suffix: String) extends Expr
 
 // TODO: chords, keys, scopes, time signature
 
 class NoteParser extends RegexParsers with PackratParsers {
 
-  lazy val token: PackratParser[Token] = duration | octave | fragment | harmony | segment | scale | note | rest
+  lazy val statement: PackratParser[Statement] = chord
+
+  lazy val expr: PackratParser[Expr] =
+    duration | octave | fragment | harmony | segment | scale | chordRef | note | rest
 
   lazy val note: PackratParser[Note] =
     """[cdefgab1-7](#{1,2}|b{1,2}|!)?""".r ^^ { s =>
-      Note(s.head, s.tail match {
-        case "#" => Some(Sharp)
-        case "##" => Some(DoubleSharp)
-        case "b" => Some(Flat)
-        case "bb" => Some(DoubleFlat)
-        case "!" => Some(Natural)
-        case _ => None
-      })
+      Note(s.head, Accidental.parse(s.tail))
     }
 
   lazy val rest: PackratParser[Rest.type] = "~" ^^^ Rest
 
   lazy val number: PackratParser[Int] = """\d+""".r ^^ (_.toInt)
 
-  lazy val duration: PackratParser[Duration] = token ~ ("*" | "'" | ".") ~ opt(number) ^^ {
+  lazy val duration: PackratParser[Duration] = expr ~ ("*" | "'" | ".") ~ opt(number) ^^ {
     case (duration: Duration) ~ "*" ~ num => duration.copy(power = duration.power + num.getOrElse(1))
     case (duration: Duration) ~ "'" ~ num => duration.copy(power = duration.power - num.getOrElse(1))
     case (duration: Duration) ~ "." ~ num => duration.copy(dots = duration.dots + num.getOrElse(1))
@@ -52,7 +54,7 @@ class NoteParser extends RegexParsers with PackratParsers {
     case _ => throw new UnsupportedOperationException
   }
 
-  lazy val octave: PackratParser[Octave] = ("+" | "-") ~ opt(number) ~ token ^^ {
+  lazy val octave: PackratParser[Octave] = ("+" | "-") ~ opt(number) ~ expr ^^ {
     case "+" ~ num ~ (octave: Octave) => octave.copy(value = octave.value + num.getOrElse(1))
     case "-" ~ num ~ (octave: Octave) => octave.copy(value = octave.value - num.getOrElse(1))
     case "+" ~ num ~ token => Octave(token, num.getOrElse(1))
@@ -60,25 +62,46 @@ class NoteParser extends RegexParsers with PackratParsers {
     case _ => throw new UnsupportedOperationException
   }
 
-  lazy val fragment: PackratParser[Fragment] = "(" ~> rep1(token) <~ ")" ^^ Fragment
+  lazy val fragment: PackratParser[Fragment] = "(" ~> rep1(expr) <~ ")" ^^ Fragment
 
-  lazy val harmony: PackratParser[Harmony] = "[" ~> rep1(token) <~ "]" ^^ Harmony
+  lazy val harmony: PackratParser[Harmony] = "[" ~> rep1(expr) <~ "]" ^^ Harmony
 
-  lazy val segment: PackratParser[Segment] = "{" ~> rep1(token) <~ "}" ^^ Segment
+  lazy val segment: PackratParser[Segment] = "{" ~> rep1(expr) <~ "}" ^^ Segment
 
-  lazy val scale: PackratParser[Scale] = "<" ~> note ~ (":" ~> token) <~ ">" ^^ {
+  lazy val scale: PackratParser[Scale] = "<" ~> note ~ (":" ~> expr) <~ ">" ^^ {
     case note ~ token => Scale(note, token)
   }
+
+  lazy val chord: PackratParser[Chord] =
+    """\$::\w*""".r ~ (("=" ~ "<" ~ "$" ~ ":") ~> expr <~ ">") ^^ {
+      case s"$$::$suffix" ~ token => Chord(suffix, Scale(_, token))
+    }
+
+  lazy val chordRef: PackratParser[ChordRef] =
+    """[CDEFGAB](#{1,2}|b{1,2}|!)?\w*""".r ^^ {
+      case s"$symbol#$suffix" => ChordRef(Note(symbol.head.toLower, Some(Sharp)), suffix)
+      case s"$symbol##$suffix" => ChordRef(Note(symbol.head.toLower, Some(DoubleSharp)), suffix)
+      case s"${symbol}b$suffix" => ChordRef(Note(symbol.head.toLower, Some(Flat)), suffix)
+      case s"${symbol}bb$suffix" => ChordRef(Note(symbol.head.toLower, Some(DoubleFlat)), suffix)
+      case s"$symbol!$suffix" => ChordRef(Note(symbol.head.toLower, Some(Natural)), suffix)
+      case s => ChordRef(Note(s.head.toLower, None), s.tail)
+    }
 
 }
 
 object NoteParser extends NoteParser {
 
-  def read(text: String): Segment = {
-    val result = parse(phrase(segment), text)
-    result.getOrElse {
-      println(result)
+  def read(text: String): (Expr, Map[String, Note => Scale]) = {
+    val program = parse(phrase(rep(statement) ~ expr), text)
+    program.getOrElse {
+      println(program)
       throw new RuntimeException("Parsing failed")
+    } match {
+      case statements ~ expr =>
+        val env = statements.foldLeft(Map[String, Note => Scale]()) {
+          case (map, Chord(suffix, f)) => map + (suffix -> f)
+        }
+        (expr, env)
     }
   }
 
