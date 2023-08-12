@@ -1,0 +1,4 @@
+{
+  e ([-2a a] b) [-a c e +c] [-a c e +c] +(d e) +f*
+  +(-b c d a g f)*. +((e f) e d#) +e*
+}

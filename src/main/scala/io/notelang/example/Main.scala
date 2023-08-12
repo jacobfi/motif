@@ -8,10 +8,11 @@ import scala.io.Source
 object Main {
 
   def main(args: Array[String]): Unit = {
-    val tokens = NoteParser.read(Source.fromResource("test.n").mkString)
-    val sequence = new MidiSequencer().process(tokens)
+    val segment = NoteParser.read(Source.fromResource("test.n").mkString)
+    val sequencer = new MidiSequencer()
+    sequencer.addSegment(segment)
     val player = new MidiPlayer
-    player.play(sequence)
+    player.play(sequencer.getSequence)
   }
 
 }
