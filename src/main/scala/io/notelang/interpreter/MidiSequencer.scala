@@ -5,9 +5,6 @@ import javax.sound.midi._
 
 class MidiSequencer(ticksPerBeat: Int = 32) {
 
-  private val noteIndex = Array('c', 'd', 'e', 'f', 'g', 'a', 'b')
-  private val majorScale = Array(2, 2, 1, 2, 2, 2)
-
   private val middleC = 60
 
   private val sequence = new Sequence(Sequence.PPQ, ticksPerBeat)
@@ -25,7 +22,9 @@ class MidiSequencer(ticksPerBeat: Int = 32) {
     import ctx._
     expr match {
       case note: Note =>
-        val semitone = pitch(note, currentOctave, key)
+        val noteLetter = if (note.symbol.isLetter) note.symbol else key.toLetter(note.symbol.asDigit)
+        val (base, delta) = key.baseAndDelta(noteLetter)
+        val semitone = middleC + base + note.accidental.getOrElse(delta) + currentOctave * 12
         track.add(new MidiEvent(new ShortMessage(ShortMessage.NOTE_ON, semitone, 127), ticks))
         track.add(new MidiEvent(new ShortMessage(ShortMessage.NOTE_OFF, semitone, 127), ticks + noteLength))
         ticks + noteLength
@@ -44,25 +43,12 @@ class MidiSequencer(ticksPerBeat: Int = 32) {
         exprs.map(next(_, ticks)).last
       case Segment(exprs) =>
         exprs.foldLeft(ticks) { case (tickSum, expr) => next(expr, tickSum) }
-      case Scale(root, expr) =>
-        next(expr, ticks)(ctx.copy(key = root))
+      case Scale(tonic, expr) =>
+        next(expr, ticks)(ctx.copy(key = Key.majorOf(tonic.symbol, tonic.accidental.getOrElse(0))))
       case ChordRef(note, suffix) =>
         val expr = ctx.chords(suffix)(note)
         next(expr, ticks)
     }
-  }
-
-  private def steps(note: Note): Int = {
-    val scaleIndex =
-      if (note.symbol.isLetter) noteIndex.indexOf(note.symbol)
-      else note.symbol.asDigit - 1
-    majorScale.take(scaleIndex).sum + note.accidental.fold(0)(_.value)
-  }
-
-  private def pitch(note: Note, octave: Int, key: Note): Int = {
-    val base = steps(note)
-    val shift = if (note.symbol.isDigit) steps(key) else 0
-    middleC + base + shift + octave * 12
   }
 
   private def modifiedLength(noteLength: Int, power: Int, dots: Int): Double = {

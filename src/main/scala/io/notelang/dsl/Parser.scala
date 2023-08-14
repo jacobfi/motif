@@ -6,7 +6,7 @@ sealed trait Statement
 
 sealed trait Expr
 
-case class Note(symbol: Char, accidental: Option[Accidental]) extends Expr
+case class Note(symbol: Char, accidental: Option[Int]) extends Expr
 
 case object Rest extends Expr
 
@@ -20,7 +20,7 @@ case class Harmony(exprs: Seq[Expr]) extends Expr
 
 case class Segment(exprs: Seq[Expr]) extends Expr
 
-case class Scale(root: Note, expr: Expr) extends Expr
+case class Scale(tonic: Note, expr: Expr) extends Expr
 
 case class Chord(suffix: String, f: Note => Scale) extends Statement
 
@@ -37,7 +37,14 @@ class NoteParser extends RegexParsers with PackratParsers {
 
   lazy val note: PackratParser[Note] =
     """[cdefgab1-7](#{1,2}|b{1,2}|!)?""".r ^^ { s =>
-      Note(s.head, Accidental.parse(s.tail))
+      Note(s.head, s.tail match {
+        case "#" => Some(1)
+        case "##" => Some(2)
+        case "b" => Some(-1)
+        case "bb" => Some(-2)
+        case "!" => Some(0)
+        case _ => None
+      })
     }
 
   lazy val rest: PackratParser[Rest.type] = "~" ^^^ Rest
@@ -75,15 +82,13 @@ class NoteParser extends RegexParsers with PackratParsers {
   lazy val chord: PackratParser[Chord] =
     """\$::\w*""".r ~ (("=" ~ "<" ~ "$" ~ ":") ~> expr <~ ">") ^^ {
       case s"$$::$suffix" ~ token => Chord(suffix, Scale(_, token))
+      case _ => throw new UnsupportedOperationException
     }
 
   lazy val chordRef: PackratParser[ChordRef] =
-    """[CDEFGAB](#{1,2}|b{1,2}|!)?\w*""".r ^^ {
-      case s"$symbol#$suffix" => ChordRef(Note(symbol.head.toLower, Some(Sharp)), suffix)
-      case s"$symbol##$suffix" => ChordRef(Note(symbol.head.toLower, Some(DoubleSharp)), suffix)
-      case s"${symbol}b$suffix" => ChordRef(Note(symbol.head.toLower, Some(Flat)), suffix)
-      case s"${symbol}bb$suffix" => ChordRef(Note(symbol.head.toLower, Some(DoubleFlat)), suffix)
-      case s"$symbol!$suffix" => ChordRef(Note(symbol.head.toLower, Some(Natural)), suffix)
+    """[CDEFGAB][#b]?\w*""".r ^^ {
+      case s"$symbol#$suffix" => ChordRef(Note(symbol.head.toLower, Some(1)), suffix)
+      case s"${symbol}b$suffix" => ChordRef(Note(symbol.head.toLower, Some(-1)), suffix)
       case s => ChordRef(Note(s.head.toLower, None), s.tail)
     }
 
@@ -92,9 +97,9 @@ class NoteParser extends RegexParsers with PackratParsers {
 object NoteParser extends NoteParser {
 
   def read(text: String): (Expr, Map[String, Note => Scale]) = {
-    val program = parse(phrase(rep(statement) ~ expr), text)
-    program.getOrElse {
-      println(program)
+    val ast = parse(phrase(rep(statement) ~ expr), text)
+    ast.getOrElse {
+      println(ast)
       throw new RuntimeException("Parsing failed")
     } match {
       case statements ~ expr =>
