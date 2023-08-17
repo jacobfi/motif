@@ -23,8 +23,13 @@ class MidiSequencer(ticksPerBeat: Int = 32) {
     expr match {
       case ILNote(symbol, accidental) =>
         val noteLetter = if (symbol.isLetter) symbol else key.toLetter(symbol.asDigit)
-        val (base, delta) = key.baseAndDelta(noteLetter)
-        val semitone = middleC + base + accidental.getOrElse(delta) + currentOctave * 12
+        val toneValue =
+          if (symbol.isDigit) key.semitone(noteLetter) + accidental.getOrElse(0) // Accidental is additive.
+          else {
+            val (base, delta) = key.baseAndDelta(noteLetter)
+            base + accidental.getOrElse(delta) // Overwrite key-delta with accidental.
+          }
+        val semitone = middleC + toneValue + currentOctave * 12
         track.add(new MidiEvent(new ShortMessage(ShortMessage.NOTE_ON, semitone, 127), ticks))
         track.add(new MidiEvent(new ShortMessage(ShortMessage.NOTE_OFF, semitone, 127), ticks + noteLength))
         ticks + noteLength

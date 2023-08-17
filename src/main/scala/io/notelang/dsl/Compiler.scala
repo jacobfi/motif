@@ -22,14 +22,14 @@ case class Function(argNames: List[String], body: Expr)
 
 object Compiler {
 
-  type Environment = Map[String, Function]
+  type Environment = Map[String, Either[ILExpr, Function]]
 
   def compile(program: Block, env: Environment = Map.empty): ILSegment = {
     val updatedEnv = program.statements.foldLeft(env) {
       case (env, statement) => statement match {
-        case Chord(suffix, f) => env + (suffix -> ???)
-        case AssignVar(name, expr) => env + (name -> Function(Nil, expr))
-        case DeclareFunc(name, argNames, body) => env + (name -> Function(argNames, body))
+        case Chord(suffix, exprs) => env + (s"::$suffix" -> Right(Function(Nil, Block(Seq.empty, exprs))))
+        case AssignVar(name, expr) => env + (name -> Left(eval(expr)(env)))
+        case DeclareFunc(name, argNames, body) => env + (name -> Right(Function(argNames, body)))
       }
     }
     ILSegment(program.exprs.map(eval(_)(updatedEnv)))
@@ -45,12 +45,14 @@ object Compiler {
       case Harmony(exprs) => ILHarmony(exprs.map(eval))
       case Scale(tonic, exprs) => ILKey(tonic, ILSegment(exprs.map(eval)))
       case block: Block => compile(block, env)
-      case ChordRef(note, suffix) => eval(env(suffix).body)(env + ("$" -> Function(Nil, note)))
-      case VarRef(name) => eval(env(name).body)
+      case ChordRef(note, suffix) =>
+        val exprs = env(s"::$suffix").getOrElse(throw new IllegalArgumentException).body.asInstanceOf[Block].exprs
+        ILKey(note, ILSegment(exprs.map(eval)))
+      case VarRef(name) => env(name).swap.getOrElse(throw new IllegalArgumentException)
       case FuncRef(name, args) =>
-        val f = env(name)
+        val f = env(name).getOrElse(throw new IllegalArgumentException)
         eval(f.body)(env ++ f.argNames.zip(args).map {
-          case (name, expr) => name -> Function(Nil, expr)
+          case (name, expr) => name -> Left(eval(expr))
         })
     }
 

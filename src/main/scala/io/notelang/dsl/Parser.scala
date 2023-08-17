@@ -22,7 +22,7 @@ case class Scale(tonic: Note, exprs: Seq[Expr]) extends Expr
 
 case class Block(statements: Seq[Statement], exprs: Seq[Expr]) extends Expr
 
-case class Chord(suffix: String, f: Note => Scale) extends Statement
+case class Chord(suffix: String, exprs: Seq[Expr]) extends Statement
 
 case class ChordRef(note: Note, suffix: String) extends Expr
 
@@ -96,7 +96,7 @@ class Parser extends RegexParsers with PackratParsers {
 
   lazy val chord: PackratParser[Chord] =
     """\$::\w*""".r ~ (("=" ~ "<" ~ "$" ~ ":") ~> rep1(expr) <~ ">") ^^ {
-      case s"$$::$suffix" ~ exprs => Chord(suffix, Scale(_, exprs))
+      case s"$$::$suffix" ~ exprs => Chord(suffix, exprs)
       case _ => throw new UnsupportedOperationException
     }
 
