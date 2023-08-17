@@ -1,16 +1,17 @@
 package io.notelang.example
 
-import io.notelang.dsl.NoteParser
-import io.notelang.interpreter.{MidiPlayer, MidiSequencer}
+import io.notelang.dsl._
+import io.notelang.interpreter._
 
 import scala.io.Source
 
 object Main {
 
   def main(args: Array[String]): Unit = {
-    val (segment, env) = NoteParser.read(Source.fromResource("test.n").mkString)
+    val program = NoteParser.read(Source.fromResource("test.n").mkString)
+    val segment = Compiler.compile(program)
     val sequencer = new MidiSequencer()
-    sequencer.add(segment, env)
+    sequencer.add(segment)
     val player = new MidiPlayer
     player.play(sequencer.getSequence)
   }

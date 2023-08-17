@@ -6,5 +6,4 @@ case class Context(
   noteLength: Int,
   currentOctave: Int = 0,
   key: Key = Key.CMajor,
-  chords: Map[String, Note => Scale] = Map.empty,
 )

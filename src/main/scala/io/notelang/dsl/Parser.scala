@@ -18,9 +18,9 @@ case class Fragment(exprs: Seq[Expr]) extends Expr
 
 case class Harmony(exprs: Seq[Expr]) extends Expr
 
-case class Segment(exprs: Seq[Expr]) extends Expr
+case class Scale(tonic: Note, exprs: Seq[Expr]) extends Expr
 
-case class Scale(tonic: Note, expr: Expr) extends Expr
+case class Block(statements: Seq[Statement], exprs: Seq[Expr]) extends Expr
 
 case class Chord(suffix: String, f: Note => Scale) extends Statement
 
@@ -28,12 +28,12 @@ case class ChordRef(note: Note, suffix: String) extends Expr
 
 // TODO: chords, keys, scopes, time signature
 
-class NoteParser extends RegexParsers with PackratParsers {
+class Parser extends RegexParsers with PackratParsers {
 
   lazy val statement: PackratParser[Statement] = chord
 
   lazy val expr: PackratParser[Expr] =
-    duration | octave | fragment | harmony | segment | scale | chordRef | note | rest
+    duration | octave | blockScope | fragment | harmony | scale | chordRef | note | rest
 
   lazy val note: PackratParser[Note] =
     """[cdefgab1-7](#{1,2}|b{1,2}|!)?""".r ^^ { s =>
@@ -55,33 +55,37 @@ class NoteParser extends RegexParsers with PackratParsers {
     case (duration: Duration) ~ "*" ~ num => duration.copy(power = duration.power + num.getOrElse(1))
     case (duration: Duration) ~ "'" ~ num => duration.copy(power = duration.power - num.getOrElse(1))
     case (duration: Duration) ~ "." ~ num => duration.copy(dots = duration.dots + num.getOrElse(1))
-    case token ~ "*" ~ num => Duration(token, num.getOrElse(1), 0)
-    case token ~ "'" ~ num => Duration(token, -num.getOrElse(1), 0)
-    case token ~ "." ~ num => Duration(token, 0, num.getOrElse(1))
+    case expr ~ "*" ~ num => Duration(expr, num.getOrElse(1), 0)
+    case expr ~ "'" ~ num => Duration(expr, -num.getOrElse(1), 0)
+    case expr ~ "." ~ num => Duration(expr, 0, num.getOrElse(1))
     case _ => throw new UnsupportedOperationException
   }
 
   lazy val octave: PackratParser[Octave] = ("+" | "-") ~ opt(number) ~ expr ^^ {
     case "+" ~ num ~ (octave: Octave) => octave.copy(value = octave.value + num.getOrElse(1))
     case "-" ~ num ~ (octave: Octave) => octave.copy(value = octave.value - num.getOrElse(1))
-    case "+" ~ num ~ token => Octave(token, num.getOrElse(1))
-    case "-" ~ num ~ token => Octave(token, -num.getOrElse(1))
+    case "+" ~ num ~ expr => Octave(expr, num.getOrElse(1))
+    case "-" ~ num ~ expr => Octave(expr, -num.getOrElse(1))
     case _ => throw new UnsupportedOperationException
   }
+
+  lazy val block: PackratParser[Block] = rep(statement) ~ rep1(expr) ^^ {
+    case statements ~ exprs => Block(statements, exprs)
+  }
+
+  lazy val blockScope: PackratParser[Block] = "{" ~> block <~ "}"
 
   lazy val fragment: PackratParser[Fragment] = "(" ~> rep1(expr) <~ ")" ^^ Fragment
 
   lazy val harmony: PackratParser[Harmony] = "[" ~> rep1(expr) <~ "]" ^^ Harmony
 
-  lazy val segment: PackratParser[Segment] = "{" ~> rep1(expr) <~ "}" ^^ Segment
-
-  lazy val scale: PackratParser[Scale] = "<" ~> note ~ (":" ~> expr) <~ ">" ^^ {
-    case note ~ token => Scale(note, token)
+  lazy val scale: PackratParser[Scale] = "<" ~> note ~ (":" ~> rep1(expr)) <~ ">" ^^ {
+    case note ~ exprs => Scale(note, exprs)
   }
 
   lazy val chord: PackratParser[Chord] =
-    """\$::\w*""".r ~ (("=" ~ "<" ~ "$" ~ ":") ~> expr <~ ">") ^^ {
-      case s"$$::$suffix" ~ token => Chord(suffix, Scale(_, token))
+    """\$::\w*""".r ~ (("=" ~ "<" ~ "$" ~ ":") ~> rep1(expr) <~ ">") ^^ {
+      case s"$$::$suffix" ~ exprs => Chord(suffix, Scale(_, exprs))
       case _ => throw new UnsupportedOperationException
     }
 
@@ -94,19 +98,13 @@ class NoteParser extends RegexParsers with PackratParsers {
 
 }
 
-object NoteParser extends NoteParser {
+object NoteParser extends Parser {
 
-  def read(text: String): (Expr, Map[String, Note => Scale]) = {
-    val ast = parse(phrase(rep(statement) ~ expr), text)
-    ast.getOrElse {
-      println(ast)
+  def read(text: String): Block = {
+    val program = parse(phrase(block), text)
+    program.getOrElse {
+      println(program)
       throw new RuntimeException("Parsing failed")
-    } match {
-      case statements ~ expr =>
-        val env = statements.foldLeft(Map[String, Note => Scale]()) {
-          case (map, Chord(suffix, f)) => map + (suffix -> f)
-        }
-        (expr, env)
     }
   }
 
