@@ -26,14 +26,23 @@ case class Chord(suffix: String, f: Note => Scale) extends Statement
 
 case class ChordRef(note: Note, suffix: String) extends Expr
 
+case class AssignVar(name: String, expr: Expr) extends Statement
+
+case class VarRef(name: String) extends Expr
+
+case class DeclareFunc(name: String, argNames: List[String], body: Expr) extends Statement
+
+case class FuncRef(name: String, args: List[Expr]) extends Expr
+
 // TODO: chords, keys, scopes, time signature
 
 class Parser extends RegexParsers with PackratParsers {
 
-  lazy val statement: PackratParser[Statement] = chord
+  lazy val statement: PackratParser[Statement] =
+    chord | assignVar | declareFunc
 
   lazy val expr: PackratParser[Expr] =
-    duration | octave | blockScope | fragment | harmony | scale | chordRef | note | rest
+    duration | octave | blockScope | fragment | harmony | scale | note | rest | chordRef | varRef
 
   lazy val note: PackratParser[Note] =
     """[cdefgab1-7](#{1,2}|b{1,2}|!)?""".r ^^ { s =>
@@ -48,6 +57,8 @@ class Parser extends RegexParsers with PackratParsers {
     }
 
   lazy val rest: PackratParser[Rest.type] = "~" ^^^ Rest
+
+  lazy val name: PackratParser[String] = """\w+""".r ^^ identity
 
   lazy val number: PackratParser[Int] = """\d+""".r ^^ (_.toInt)
 
@@ -95,6 +106,18 @@ class Parser extends RegexParsers with PackratParsers {
       case s"${symbol}b$suffix" => ChordRef(Note(symbol.head.toLower, Some(-1)), suffix)
       case s => ChordRef(Note(s.head.toLower, None), s.tail)
     }
+
+  lazy val assignVar: PackratParser[AssignVar] = name ~> "=" ~ expr ^^ {
+    case name ~ expr => AssignVar(name, expr)
+  }
+
+  lazy val varRef: PackratParser[VarRef] = name ^^ VarRef
+
+  lazy val declareFunc: PackratParser[DeclareFunc] = name ~> "=" ~ rep1(name ~> "->") ~ expr ^^ {
+    case name ~ argNames ~ body => DeclareFunc(name, argNames, body)
+  }
+
+  lazy val funcRef: PackratParser[FuncRef] = ??? // TODO
 
 }
 
