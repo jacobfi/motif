@@ -14,32 +14,28 @@ case class Duration(expr: Expr, power: Int, dots: Int) extends Expr
 
 case class Octave(expr: Expr, value: Int) extends Expr
 
-case class Fragment(exprs: Seq[Expr]) extends Expr
+case class Fragment(exprs: List[Expr]) extends Expr
 
-case class Harmony(exprs: Seq[Expr]) extends Expr
+case class Harmony(exprs: List[Expr]) extends Expr
 
-case class Scale(tonic: Note, exprs: Seq[Expr]) extends Expr
+case class Block(statements: List[Statement], exprs: List[Expr]) extends Expr
 
-case class Block(statements: Seq[Statement], exprs: Seq[Expr]) extends Expr
+case class ChangeKey(tonic: Expr) extends Statement
 
-case class Chord(suffix: String, exprs: Seq[Expr]) extends Statement
-
-case class ChordRef(note: Note, suffix: String) extends Expr
-
-case class AssignVar(name: String, expr: Expr) extends Statement
+case class Assignment(name: String, value: Either[Expr, Function]) extends Statement
 
 case class VarRef(name: String) extends Expr
 
-case class DeclareFunc(name: String, argNames: List[String], body: Expr) extends Statement
+case class FuncRef(name: String, args: List[Either[Expr, Function]]) extends Expr
 
-case class FuncRef(name: String, args: List[Expr]) extends Expr
+case class Function(argNames: List[String], body: Expr)
 
 // TODO: chords, keys, scopes, time signature
 
 class Parser extends RegexParsers with PackratParsers {
 
   lazy val statement: PackratParser[Statement] =
-    chord | assignVar | declareFunc
+    changeKey | chord | assignVar | assignFunc
 
   lazy val expr: PackratParser[Expr] =
     duration | octave | blockScope | fragment | harmony | scale | note | rest | chordRef | varRef
@@ -90,32 +86,37 @@ class Parser extends RegexParsers with PackratParsers {
 
   lazy val harmony: PackratParser[Harmony] = "[" ~> rep1(expr) <~ "]" ^^ Harmony
 
-  lazy val scale: PackratParser[Scale] = "<" ~> note ~ (":" ~> rep1(expr)) <~ ">" ^^ {
-    case note ~ exprs => Scale(note, exprs)
+  lazy val scale: PackratParser[Block] = "<" ~> expr ~ (":" ~> rep1(expr)) <~ ">" ^^ {
+    case tonic ~ exprs => Block(ChangeKey(tonic) :: Nil, exprs)
   }
 
-  lazy val chord: PackratParser[Chord] =
-    """\$::\w*""".r ~ (("=" ~ "<" ~ "$" ~ ":") ~> rep1(expr) <~ ">") ^^ {
-      case s"$$::$suffix" ~ exprs => Chord(suffix, exprs)
-      case _ => throw new UnsupportedOperationException
+  lazy val changeKey: PackratParser[ChangeKey] = "key" ~> ":" ~> expr ^^ ChangeKey
+
+  lazy val chord: PackratParser[Assignment] =
+    """\$::\w*""".r ~ ("=" ~> scale) ^^ {
+      case name ~ scale => Assignment(name.tail, Right(Function("$" :: Nil, scale)))
     }
 
-  lazy val chordRef: PackratParser[ChordRef] =
+  lazy val chordRef: PackratParser[FuncRef] =
     """[CDEFGAB][#b]?\w*""".r ^^ {
-      case s"$symbol#$suffix" => ChordRef(Note(symbol.head.toLower, Some(1)), suffix)
-      case s"${symbol}b$suffix" => ChordRef(Note(symbol.head.toLower, Some(-1)), suffix)
-      case s => ChordRef(Note(s.head.toLower, None), s.tail)
+      case s"$symbol#$suffix" => FuncRef(s"::$suffix", Left(Note(symbol.head.toLower, Some(1))) :: Nil)
+      case s"${symbol}b$suffix" => FuncRef(s"::$suffix", Left(Note(symbol.head.toLower, Some(-1))) :: Nil)
+      case s => FuncRef(s"::${s.tail}", Left(Note(s.head.toLower, None)) :: Nil)
     }
 
-  lazy val assignVar: PackratParser[AssignVar] = name ~> "=" ~ expr ^^ {
-    case name ~ expr => AssignVar(name, expr)
+  lazy val function: PackratParser[Function] = rep1(name <~ "->") ~ expr ^^ {
+    case argNames ~ body => Function(argNames, body)
   }
 
-  lazy val varRef: PackratParser[VarRef] = name ^^ VarRef
-
-  lazy val declareFunc: PackratParser[DeclareFunc] = name ~> "=" ~ rep1(name ~> "->") ~ expr ^^ {
-    case name ~ argNames ~ body => DeclareFunc(name, argNames, body)
+  lazy val assignVar: PackratParser[Assignment] = name ~ ("=" ~> expr) ^^ {
+    case name ~ expr => Assignment(name, Left(expr))
   }
+
+  lazy val assignFunc: PackratParser[Assignment] = name ~ ("=" ~> function) ^^ {
+    case name ~ func => Assignment(name, Right(func))
+  }
+
+  lazy val varRef: PackratParser[VarRef] = (name | "$") ^^ VarRef
 
   lazy val funcRef: PackratParser[FuncRef] = ??? // TODO
 

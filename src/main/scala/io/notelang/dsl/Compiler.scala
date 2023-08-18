@@ -16,24 +16,28 @@ case class ILHarmony(exprs: Seq[ILExpr]) extends ILExpr
 
 case class ILSegment(exprs: Seq[ILExpr]) extends ILExpr
 
-case class ILKey(tonic: Note, expr: ILExpr) extends ILExpr
-
-case class Function(argNames: List[String], body: Expr)
+case class ILKey(tonic: ILNote, expr: ILExpr) extends ILExpr
 
 object Compiler {
 
-  type Environment = Map[String, Either[ILExpr, Function]]
+  case class Closure(env: Environment, f: Function)
 
-  def compile(program: Block, env: Environment = Map.empty): ILSegment = {
-    val updatedEnv = program.statements.foldLeft(env) {
-      case (env, statement) => statement match {
-        case Chord(suffix, exprs) => env + (s"::$suffix" -> Right(Function(Nil, Block(Seq.empty, exprs))))
-        case AssignVar(name, expr) => env + (name -> Left(eval(expr)(env)))
-        case DeclareFunc(name, argNames, body) => env + (name -> Right(Function(argNames, body)))
-      }
-    }
-    ILSegment(program.exprs.map(eval(_)(updatedEnv)))
+  type Environment = Map[String, Either[ILExpr, Closure]]
+
+  def compile(program: Block): ILSegment = compile(program.statements, program.exprs)(Map.empty) match {
+    case segment: ILSegment => segment
+    case expr => ILSegment(Seq(expr))
   }
+
+  private def compile(statements: List[Statement], exprs: List[Expr])(implicit env: Environment): ILExpr =
+    statements match {
+      case head :: tail =>
+        head match {
+          case ChangeKey(tonic) => ILKey(eval(tonic).asInstanceOf[ILNote], compile(tail, exprs))
+          case Assignment(name, value) => compile(tail, exprs)(env + (name -> expand(value)))
+        }
+      case Nil => ILSegment(exprs.map(eval))
+    }
 
   private def eval(expr: Expr)(implicit env: Environment): ILExpr =
     expr match {
@@ -43,17 +47,16 @@ object Compiler {
       case Octave(expr, value) => ILOctave(eval(expr), value)
       case Fragment(exprs) => ILFragment(exprs.map(eval))
       case Harmony(exprs) => ILHarmony(exprs.map(eval))
-      case Scale(tonic, exprs) => ILKey(tonic, ILSegment(exprs.map(eval)))
-      case block: Block => compile(block, env)
-      case ChordRef(note, suffix) =>
-        val exprs = env(s"::$suffix").getOrElse(throw new IllegalArgumentException).body.asInstanceOf[Block].exprs
-        ILKey(note, ILSegment(exprs.map(eval)))
+      case block: Block => compile(block.statements, block.exprs)
       case VarRef(name) => env(name).swap.getOrElse(throw new IllegalArgumentException)
       case FuncRef(name, args) =>
-        val f = env(name).getOrElse(throw new IllegalArgumentException)
-        eval(f.body)(env ++ f.argNames.zip(args).map {
-          case (name, expr) => name -> Left(eval(expr))
-        })
+        val Closure(localEnv, f) = env(name).getOrElse(throw new IllegalArgumentException)
+        eval(f.body)(localEnv ++ f.argNames.zip(args.map(expand)))
     }
+
+  private def expand(arg: Either[Expr, Function])(implicit env: Environment) = arg match {
+    case Left(expr) => Left(eval(expr))
+    case Right(func) => Right(Closure(env, func))
+  }
 
 }
