@@ -1,5 +1,6 @@
 package io.notelang.dsl
 
+import scala.util.matching.Regex
 import scala.util.parsing.combinator._
 
 sealed trait Statement
@@ -20,7 +21,7 @@ case class Harmony(exprs: List[Expr]) extends Expr
 
 case class Block(statements: List[Statement], exprs: List[Expr]) extends Expr
 
-case class ChangeKey(tonic: Expr) extends Statement
+case class ChangeKey(expr: Expr) extends Statement
 
 case class Assignment(name: String, value: Either[Expr, Function]) extends Statement
 
@@ -34,11 +35,14 @@ case class Function(argNames: List[String], body: Expr)
 
 class Parser extends RegexParsers with PackratParsers {
 
+  val name: Regex = """\w+""".r
+  val chord: Regex = """[CDEFGAB]#?\w*""".r
+
   lazy val statement: PackratParser[Statement] =
-    changeKey | chord | assignVar | assignFunc
+    changeKey | declareChord | assignVar | assignFunc
 
   lazy val expr: PackratParser[Expr] =
-    duration | octave | blockScope | fragment | harmony | scale | note | rest | chordRef | varRef
+    duration | octave | blockScope | fragment | harmony | scale | (note ||| varRef) | rest
 
   lazy val note: PackratParser[Note] =
     """[cdefgab1-7](#{1,2}|b{1,2}|!)?""".r ^^ { s =>
@@ -53,8 +57,6 @@ class Parser extends RegexParsers with PackratParsers {
     }
 
   lazy val rest: PackratParser[Rest.type] = "~" ^^^ Rest
-
-  lazy val name: PackratParser[String] = """\w+""".r ^^ identity
 
   lazy val number: PackratParser[Int] = """\d+""".r ^^ (_.toInt)
 
@@ -92,16 +94,9 @@ class Parser extends RegexParsers with PackratParsers {
 
   lazy val changeKey: PackratParser[ChangeKey] = "key" ~> ":" ~> expr ^^ ChangeKey
 
-  lazy val chord: PackratParser[Assignment] =
+  lazy val declareChord: PackratParser[Assignment] =
     """\$::\w*""".r ~ ("=" ~> scale) ^^ {
       case name ~ scale => Assignment(name.tail, Right(Function("$" :: Nil, scale)))
-    }
-
-  lazy val chordRef: PackratParser[FuncRef] =
-    """[CDEFGAB][#b]?\w*""".r ^^ {
-      case s"$symbol#$suffix" => FuncRef(s"::$suffix", Left(Note(symbol.head.toLower, Some(1))) :: Nil)
-      case s"${symbol}b$suffix" => FuncRef(s"::$suffix", Left(Note(symbol.head.toLower, Some(-1))) :: Nil)
-      case s => FuncRef(s"::${s.tail}", Left(Note(s.head.toLower, None)) :: Nil)
     }
 
   lazy val function: PackratParser[Function] = rep1(name <~ "->") ~ expr ^^ {
@@ -116,7 +111,7 @@ class Parser extends RegexParsers with PackratParsers {
     case name ~ func => Assignment(name, Right(func))
   }
 
-  lazy val varRef: PackratParser[VarRef] = (name | "$") ^^ VarRef
+  lazy val varRef: PackratParser[VarRef] = (chord | name | "$") ^^ VarRef
 
   lazy val funcRef: PackratParser[FuncRef] = ??? // TODO
 
