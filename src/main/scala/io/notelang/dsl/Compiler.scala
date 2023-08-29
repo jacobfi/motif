@@ -57,14 +57,13 @@ object Compiler {
       case Harmony(exprs) => ILHarmony(exprs.map(eval))
       case block: Block => compile(block.statements, block.exprs)
       case VarRef(name) =>
-        env.get(name).flatMap(_.swap.toOption) match {
-          case Some(value) => value
-          case _ if NoteParser.chord.matches(name) =>
-            tryChord(name.take(1), name.drop(1)).getOrElse {
-              tryChord(name.take(2), name.drop(2)).getOrElse(throw new IllegalArgumentException)
+        resolve(name).getOrElse({
+          if (NoteParser.chord.matches(name)) {
+            tryResolveChord(name.take(1), name.drop(1)).getOrElse {
+              tryResolveChord(name.take(2), name.drop(2)).getOrElse(throw new IllegalArgumentException)
             }
-          case _ => throw new IllegalArgumentException
-        }
+          } else throw new IllegalArgumentException
+        })
       case FuncRef(name, args) =>
         val Closure(localEnv, f) = env(name).getOrElse(throw new IllegalArgumentException)
         eval(f.body)(localEnv ++ f.argNames.zip(args.map(expand)))
@@ -75,16 +74,18 @@ object Compiler {
     case Right(func) => Right(Closure(env, func))
   }
 
-  private def tryChord(prefix: String, suffix: String)(implicit env: Environment) =
-    for {
-      entry <- env.get(s"::$suffix")
-      chord <- entry.toOption
-      note <- prefix.toCharArray match {
+  private def resolve(name: String)(implicit env: Environment) =
+    env.get(name).flatMap(_.swap.toOption)
+
+  private def tryResolveChord(prefix: String, suffix: String)(implicit env: Environment) =
+    resolve(s"::$suffix").flatMap { chord =>
+      val tonic = prefix.toCharArray match {
         case Array(symbol) => Some(ILNote(symbol.toLower, None))
         case Array(symbol, '#') => Some(ILNote(symbol.toLower, Some(1)))
         case Array(symbol, 'b') => Some(ILNote(symbol.toLower, Some(-1)))
         case _ => None
       }
-    } yield eval(chord.f.body)(chord.env + ("$" -> Left(note)))
+      tonic.map(ILKey(_, chord))
+    }
 
 }

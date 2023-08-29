@@ -39,7 +39,7 @@ class Parser extends RegexParsers with PackratParsers {
   val chord: Regex = """[CDEFGAB]#?\w*""".r
 
   lazy val statement: PackratParser[Statement] =
-    changeKey | declareChord | assignVar | assignFunc
+    changeKey | declareChord | assignFunc | assignVar
 
   lazy val expr: PackratParser[Expr] =
     duration | octave | blockScope | fragment | harmony | scale | (note ||| varRef) | rest
@@ -95,8 +95,8 @@ class Parser extends RegexParsers with PackratParsers {
   lazy val changeKey: PackratParser[ChangeKey] = "key" ~> ":" ~> expr ^^ ChangeKey
 
   lazy val declareChord: PackratParser[Assignment] =
-    """\$::\w*""".r ~ ("=" ~> scale) ^^ {
-      case name ~ scale => Assignment(name.tail, Right(Function("$" :: Nil, scale)))
+    """\$::\w*""".r ~ (("=" ~ "<" ~ "$" ~ ":") ~> rep1(expr) <~ ">") ^^ {
+      case name ~ exprs => Assignment(name.tail, Left(Block(Nil, exprs)))
     }
 
   lazy val function: PackratParser[Function] = rep1(name <~ "->") ~ expr ^^ {
@@ -111,7 +111,7 @@ class Parser extends RegexParsers with PackratParsers {
     case name ~ func => Assignment(name, Right(func))
   }
 
-  lazy val varRef: PackratParser[VarRef] = (chord | name | "$") ^^ VarRef
+  lazy val varRef: PackratParser[VarRef] = (chord | name) ^^ VarRef
 
   lazy val funcRef: PackratParser[FuncRef] = ??? // TODO
 
