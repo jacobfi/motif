@@ -1,8 +1,8 @@
-$:: = <$:[1 3 5]>
-$::m = <$:[1 3b 5]>
-$::maj7 = <$:[1 3 5 7]>
 {
-  Cmaj7 = -(c e g b)
-  brokenChord = root -> <root:1 3 5>
-  Cmaj7
-}*
+@time 3/4
+@tempo 80
+@key d
+
+line = {c* -b d* e f e f e*. e -a e d*. -{b a b a*.}}
+line line
+}

@@ -21,28 +21,31 @@ case class Harmony(exprs: List[Expr]) extends Expr
 
 case class Block(statements: List[Statement], exprs: List[Expr]) extends Expr
 
-case class ChangeKey(expr: Expr) extends Statement
+case class KeyDirective(expr: Expr) extends Statement
+
+case class TimeDirective(numerator: Int, denominator: Int) extends Statement
+
+case class TempoDirective(bpm: Int) extends Statement
 
 case class Assignment(name: String, value: Either[Expr, Function]) extends Statement
 
-case class VarRef(name: String) extends Expr
-
-case class FuncRef(name: String, args: List[Either[Expr, Function]]) extends Expr
+case class Reference(name: String) extends Expr
 
 case class Function(argNames: List[String], body: Expr)
-
-// TODO: chords, keys, scopes, time signature
 
 class Parser extends RegexParsers with PackratParsers {
 
   val name: Regex = """\w+""".r
   val chord: Regex = """[CDEFGAB]#?\w*""".r
 
+  lazy val directive: PackratParser[Statement] =
+    keyDir | timeDir | tempoDir
+
   lazy val statement: PackratParser[Statement] =
-    changeKey | declareChord | assignFunc | assignVar
+    directive | declareChord | assignFunc | assignVar
 
   lazy val expr: PackratParser[Expr] =
-    duration | octave | blockScope | fragment | harmony | scale | (note ||| varRef) | rest
+    duration | octave | blockScope | fragment | harmony | scale | (note ||| ref) | rest
 
   lazy val note: PackratParser[Note] =
     """[cdefgab1-7](#{1,2}|b{1,2}|!)?""".r ^^ { s =>
@@ -89,10 +92,16 @@ class Parser extends RegexParsers with PackratParsers {
   lazy val harmony: PackratParser[Harmony] = "[" ~> rep1(expr) <~ "]" ^^ Harmony
 
   lazy val scale: PackratParser[Block] = "<" ~> expr ~ (":" ~> rep1(expr)) <~ ">" ^^ {
-    case tonic ~ exprs => Block(ChangeKey(tonic) :: Nil, exprs)
+    case tonic ~ exprs => Block(KeyDirective(tonic) :: Nil, exprs)
   }
 
-  lazy val changeKey: PackratParser[ChangeKey] = "key" ~> ":" ~> expr ^^ ChangeKey
+  lazy val keyDir: PackratParser[KeyDirective] = "@key" ~> expr ^^ KeyDirective
+
+  lazy val timeDir: PackratParser[TimeDirective] = "@time" ~> (number <~ "/") ~ number ^^ {
+    case numerator ~ denominator => TimeDirective(numerator, denominator)
+  }
+
+  lazy val tempoDir: PackratParser[TempoDirective] = "@tempo" ~> number ^^ TempoDirective
 
   lazy val declareChord: PackratParser[Assignment] =
     """\$::\w*""".r ~ (("=" ~ "<" ~ "$" ~ ":") ~> rep1(expr) <~ ">") ^^ {
@@ -111,9 +120,7 @@ class Parser extends RegexParsers with PackratParsers {
     case name ~ func => Assignment(name, Right(func))
   }
 
-  lazy val varRef: PackratParser[VarRef] = (chord | name) ^^ VarRef
-
-  lazy val funcRef: PackratParser[FuncRef] = ??? // TODO
+  lazy val ref: PackratParser[Reference] = (chord | name) ^^ Reference
 
 }
 

@@ -50,6 +50,13 @@ class MidiSequencer(ticksPerBeat: Int = 32) {
         exprs.foldLeft(ticks) { case (tickSum, expr) => next(expr, tickSum) }
       case ILKey(tonic, expr) =>
         next(expr, ticks)(ctx.copy(key = Key.majorOf(tonic.symbol, tonic.accidental.getOrElse(0))))
+      case ILTime(_, _, expr) =>
+        next(expr, ticks) // TODO https://www.recordingblogs.com/wiki/midi-time-signature-meta-message
+      case ILTempo(bpm, expr) =>
+        val microsecondsPerQuarterNote = 60_000_000 / bpm
+        val bytes = BigInt(microsecondsPerQuarterNote).toByteArray
+        track.add(new MidiEvent(new MetaMessage(0x51, bytes, bytes.length), ticks))
+        next(expr, ticks)
     }
   }
 

@@ -13,10 +13,14 @@ class MidiPlayer extends MetaEventListener {
     sequencer.start()
   }
 
-  override def meta(meta: MetaMessage): Unit = {
-    println("EOT")
-    sequencer.stop()
-    sequencer.close()
+  override def meta(msg: MetaMessage): Unit = {
+    msg.getType match {
+      case 0x2F =>
+        println("EOT")
+        sequencer.stop()
+        sequencer.close()
+      case _ =>
+    }
   }
 
 }

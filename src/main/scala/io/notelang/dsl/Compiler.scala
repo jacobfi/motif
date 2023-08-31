@@ -18,6 +18,10 @@ case class ILSegment(exprs: Seq[ILExpr]) extends ILExpr
 
 case class ILKey(tonic: ILNote, expr: ILExpr) extends ILExpr
 
+case class ILTime(beatsPerBar: Int, beatsPerNote: Int, expr: ILExpr) extends ILExpr
+
+case class ILTempo(bpm: Int, expr: ILExpr) extends ILExpr
+
 object Compiler {
 
   private case class Closure(env: Environment, f: Function)
@@ -36,10 +40,12 @@ object Compiler {
     statements match {
       case head :: tail =>
         head match {
-          case ChangeKey(expr) =>
+          case KeyDirective(expr) =>
             val tonic = eval(expr).asInstanceOf[ILNote]
             compile(tail, exprs, (ILKey(tonic, _)) :: pp)
-          case Assignment(name, value) => compile(tail, exprs)(env + (name -> expand(value)))
+          case TimeDirective(bpb, bpn) => compile(tail, exprs, (ILTime(bpb, bpn, _)) :: pp)
+          case TempoDirective(bpm) => compile(tail, exprs, (ILTempo(bpm, _)) :: pp)
+          case Assignment(name, value) => compile(tail, exprs, pp)(env + (name -> expand(value)))
         }
       case Nil =>
         pp.foldLeft(ILSegment(exprs.map(eval)): ILExpr) {
@@ -56,7 +62,7 @@ object Compiler {
       case Fragment(exprs) => ILFragment(exprs.map(eval))
       case Harmony(exprs) => ILHarmony(exprs.map(eval))
       case block: Block => compile(block.statements, block.exprs)
-      case VarRef(name) =>
+      case Reference(name) =>
         resolve(name).getOrElse({
           if (NoteParser.chord.matches(name)) {
             tryResolveChord(name.take(1), name.drop(1)).getOrElse {
@@ -64,9 +70,6 @@ object Compiler {
             }
           } else throw new IllegalArgumentException
         })
-      case FuncRef(name, args) =>
-        val Closure(localEnv, f) = env(name).getOrElse(throw new IllegalArgumentException)
-        eval(f.body)(localEnv ++ f.argNames.zip(args.map(expand)))
     }
 
   private def expand(arg: Either[Expr, Function])(implicit env: Environment) = arg match {
