@@ -1,4 +1,4 @@
-package io.notelang.interpreter
+package io.motif.interpreter
 
 import javax.sound.midi._
 

@@ -1,4 +1,4 @@
-package io.notelang.interpreter
+package io.motif.interpreter
 
 class Key private[Key](tonic: Char, keytone: Int, scale: Array[Int]) {
 
@@ -36,5 +36,11 @@ object Key {
 
   def minorOf(letter: Char, accidental: Int): Key =
     new Key(letter, CMajor.semitone(letter) + accidental, minorScale)
+
+  def ofMode(mode: String, letter: Char, accidental: Int): Key = mode match {
+    case "major" => majorOf(letter, accidental)
+    case "minor" => minorOf(letter, accidental)
+    case _ => throw new IllegalArgumentException
+  }
 
 }

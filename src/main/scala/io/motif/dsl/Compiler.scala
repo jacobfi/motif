@@ -1,4 +1,4 @@
-package io.notelang.dsl
+package io.motif.dsl
 
 sealed trait ILExpr
 
@@ -16,7 +16,7 @@ case class ILHarmony(exprs: Seq[ILExpr]) extends ILExpr
 
 case class ILSegment(exprs: Seq[ILExpr]) extends ILExpr
 
-case class ILKey(tonic: ILNote, expr: ILExpr) extends ILExpr
+case class ILKey(tonic: ILNote, mode: String, expr: ILExpr) extends ILExpr
 
 case class ILTime(beatsPerBar: Int, beatsPerNote: Int, expr: ILExpr) extends ILExpr
 
@@ -40,9 +40,9 @@ object Compiler {
     statements match {
       case head :: tail =>
         head match {
-          case KeyDirective(expr) =>
-            val tonic = eval(expr).asInstanceOf[ILNote]
-            compile(tail, exprs, (ILKey(tonic, _)) :: pp)
+          case KeyDirective(note, mode) =>
+            val tonic = ILNote(note.symbol, note.accidental)
+            compile(tail, exprs, (ILKey(tonic, mode, _)) :: pp)
           case TimeDirective(bpb, bpn) => compile(tail, exprs, (ILTime(bpb, bpn, _)) :: pp)
           case TempoDirective(bpm) => compile(tail, exprs, (ILTempo(bpm, _)) :: pp)
           case Assignment(name, value) => compile(tail, exprs, pp)(env + (name -> expand(value)))
@@ -88,7 +88,7 @@ object Compiler {
         case Array(symbol, 'b') => Some(ILNote(symbol.toLower, Some(-1)))
         case _ => None
       }
-      tonic.map(ILKey(_, chord))
+      tonic.map(ILKey(_, "major", chord))
     }
 
 }

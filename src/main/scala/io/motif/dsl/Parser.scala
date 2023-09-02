@@ -1,4 +1,4 @@
-package io.notelang.dsl
+package io.motif.dsl
 
 import scala.util.matching.Regex
 import scala.util.parsing.combinator._
@@ -21,7 +21,7 @@ case class Harmony(exprs: List[Expr]) extends Expr
 
 case class Block(statements: List[Statement], exprs: List[Expr]) extends Expr
 
-case class KeyDirective(expr: Expr) extends Statement
+case class KeyDirective(note: Note, mode: String) extends Statement
 
 case class TimeDirective(numerator: Int, denominator: Int) extends Statement
 
@@ -36,7 +36,7 @@ case class Function(argNames: List[String], body: Expr)
 class Parser extends RegexParsers with PackratParsers {
 
   val name: Regex = """\w+""".r
-  val chord: Regex = """[CDEFGAB]#?\w*""".r
+  val chord: Regex = """[A-G]#?\w*""".r
 
   lazy val directive: PackratParser[Statement] =
     keyDir | timeDir | tempoDir
@@ -48,16 +48,7 @@ class Parser extends RegexParsers with PackratParsers {
     duration | octave | blockScope | fragment | harmony | scale | (note ||| ref) | rest
 
   lazy val note: PackratParser[Note] =
-    """[cdefgab1-7](#{1,2}|b{1,2}|!)?""".r ^^ { s =>
-      Note(s.head, s.tail match {
-        case "#" => Some(1)
-        case "##" => Some(2)
-        case "b" => Some(-1)
-        case "bb" => Some(-2)
-        case "!" => Some(0)
-        case _ => None
-      })
-    }
+    """[a-g1-7](#{1,2}|b{1,2}|!)?""".r ^^ { s => Note(s.head, accidental(s.tail)) }
 
   lazy val rest: PackratParser[Rest.type] = "~" ^^^ Rest
 
@@ -91,11 +82,13 @@ class Parser extends RegexParsers with PackratParsers {
 
   lazy val harmony: PackratParser[Harmony] = "[" ~> rep1(expr) <~ "]" ^^ Harmony
 
-  lazy val scale: PackratParser[Block] = "<" ~> expr ~ (":" ~> rep1(expr)) <~ ">" ^^ {
-    case tonic ~ exprs => Block(KeyDirective(tonic) :: Nil, exprs)
+  lazy val scale: PackratParser[Block] = "<" ~> note ~ (":" ~> rep1(expr)) <~ ">" ^^ {
+    case tonic ~ exprs => Block(KeyDirective(tonic, "major") :: Nil, exprs)
   }
 
-  lazy val keyDir: PackratParser[KeyDirective] = "@key" ~> expr ^^ KeyDirective
+  lazy val keyDir: PackratParser[KeyDirective] = "@key" ~> "[A-G][#b]?".r ~ ("major" | "minor") ^^ {
+    case s ~ mode => KeyDirective(Note(s.head.toLower, accidental(s.tail)), mode)
+  }
 
   lazy val timeDir: PackratParser[TimeDirective] = "@time" ~> (number <~ "/") ~ number ^^ {
     case numerator ~ denominator => TimeDirective(numerator, denominator)

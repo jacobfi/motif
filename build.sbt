@@ -1,4 +1,4 @@
-name := "notelang"
+name := "motif"
 
 version := "0.1"
 
