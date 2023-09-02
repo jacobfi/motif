@@ -1,20 +1,14 @@
 package io.motif.interpreter
 
 import io.motif.dsl._
-import javax.sound.midi._
 
-class MidiSequencer(ticksPerBeat: Int = 32) {
+class MidiSequencer(midi: MidiWriter) {
 
   private val middleC = 60
 
-  private val sequence = new Sequence(Sequence.PPQ, ticksPerBeat)
-  private val track = sequence.createTrack()
-
-  def getSequence: Sequence = sequence
-
   def add(segment: ILSegment): Unit = {
-    implicit val context: Context = Context(ticksPerBeat, 4)
-    val trackLength = next(segment, ticksPerBeat)
+    implicit val context: Context = Context(midi.ticksPerBeat, 4)
+    val trackLength = next(segment, midi.ticksPerBeat)
     next(ILRest, trackLength)
   }
 
@@ -30,8 +24,8 @@ class MidiSequencer(ticksPerBeat: Int = 32) {
             base + accidental.getOrElse(delta) // Overwrite key-delta with accidental.
           }
         val semitone = middleC + toneValue + octave * 12
-        track.add(new MidiEvent(new ShortMessage(ShortMessage.NOTE_ON, semitone, 127), ticks))
-        track.add(new MidiEvent(new ShortMessage(ShortMessage.NOTE_OFF, semitone, 127), ticks + noteLength - 1))
+        midi.noteOn(semitone, ticks)
+        midi.noteOff(semitone, ticks + noteLength - 1)
         ticks + noteLength
       case ILRest => ticks + noteLength
       case ILDuration(expr, power, dots) =>
@@ -54,10 +48,7 @@ class MidiSequencer(ticksPerBeat: Int = 32) {
         val length = (noteLength * (noteValue / bpn.toDouble)).toInt
         next(expr, ticks)(ctx.copy(noteLength = length, noteValue = bpn))
       case ILTempo(bpm, expr) =>
-        // https://www.recordingblogs.com/wiki/midi-set-tempo-meta-message
-        val microsecondsPerQuarterNote = 60_000_000 / bpm
-        val bytes = BigInt(microsecondsPerQuarterNote).toByteArray
-        track.add(new MidiEvent(new MetaMessage(0x51, bytes, bytes.length), ticks))
+        midi.changeTempo(bpm, ticks)
         next(expr, ticks)
     }
   }
@@ -77,6 +68,8 @@ class MidiSequencer(ticksPerBeat: Int = 32) {
     case ILHarmony(exprs) => unitLength(exprs.last)
     case ILSegment(exprs) => exprs.map(unitLength).sum
     case ILKey(_, _, expr) => unitLength(expr)
+    case ILTime(_, _, expr) => unitLength(expr)
+    case ILTempo(_, expr) => unitLength(expr)
   }
 
 }

@@ -1,8 +1,8 @@
-package io.motif.interpreter
+package io.motif.midi
 
 import javax.sound.midi._
 
-class MidiPlayer extends MetaEventListener {
+class JavaMidiPlayer extends MetaEventListener {
 
   private val sequencer = MidiSystem.getSequencer
   sequencer.addMetaEventListener(this)
