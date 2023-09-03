@@ -1,4 +1,5 @@
 # Motif
+
 Welcome! Motif is a programming language for writing music.
 It is still a work in progress, so unfortunately there is not much documentation yet!
 
@@ -10,6 +11,7 @@ You can find a full example of [Chopin's waltz in A minor (B150 Op. posth.)](cor
 in the resources folder.
 
 ## How to run
+
 First make sure you have Java Runtime Environment installed.
 Then download the motifc.jar file and put it somewhere. Run it with:
 
