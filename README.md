@@ -13,7 +13,7 @@ in the resources folder.
 ## How to run
 
 First make sure you have Java Runtime Environment installed.
-Then [download the motifc.jar file](releases/download/latest/motifc.jar)
+Then [download the motifc.jar file](/releases/latest/download/motifc.jar)
 and put it somewhere. Run it with:
 
 `java -jar motifc.jar <filename>`
