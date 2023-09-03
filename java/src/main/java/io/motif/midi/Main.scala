@@ -9,15 +9,25 @@ import scala.util.Using
 object Main {
 
   def main(args: Array[String]): Unit = {
-    val input = Using(Source.fromFile(args.head))(_.getLines().mkString)
-      .getOrElse(Source.fromResource(args.head).mkString)
+    if (args.isEmpty) {
+      println("Please provide a filename!")
+      System.exit(0)
+    }
+
+    val filename = args.head
+    val input = Using(Source.fromFile(filename))(_.getLines().mkString)
+      .getOrElse(Source.fromResource(filename).mkString)
+
+    println(s"Compiling $filename...")
     val program = NoteParser.read(input)
     val segment = Compiler.compile(program)
 
+    println("Writing MIDI...")
     val midi = new JavaMidiWriter
     val sequencer = new MidiSequencer(midi)
     sequencer.add(segment)
 
+    println("Begin playback")
     val player = new JavaMidiPlayer
     player.play(midi.getSequence)
   }
