@@ -22,6 +22,8 @@ case class ILTime(beatsPerBar: Int, beatsPerNote: Int, expr: ILExpr) extends ILE
 
 case class ILTempo(bpm: Int, expr: ILExpr) extends ILExpr
 
+case class ILInstrument(program: Int, expr: ILExpr) extends ILExpr
+
 object Compiler {
 
   private case class Closure(env: Environment, f: Function)
@@ -36,7 +38,7 @@ object Compiler {
 
   @scala.annotation.tailrec
   private def compile(statements: List[Statement], exprs: List[Expr], pp: Postprocess = Nil)
-                     (implicit env: Environment): ILExpr =
+    (implicit env: Environment): ILExpr =
     statements match {
       case head :: tail =>
         head match {
@@ -45,6 +47,7 @@ object Compiler {
             compile(tail, exprs, (ILKey(tonic, mode, _)) :: pp)
           case TimeDirective(bpb, bpn) => compile(tail, exprs, (ILTime(bpb, bpn, _)) :: pp)
           case TempoDirective(bpm) => compile(tail, exprs, (ILTempo(bpm, _)) :: pp)
+          case InstrumentDirective(program) => compile(tail, exprs, (ILInstrument(program, _)) :: pp)
           case Assignment(name, value) => compile(tail, exprs, pp)(env + (name -> expand(value)))
         }
       case Nil =>

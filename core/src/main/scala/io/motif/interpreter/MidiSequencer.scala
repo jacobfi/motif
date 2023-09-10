@@ -24,8 +24,8 @@ class MidiSequencer(midi: MidiWriter) {
             base + accidental.getOrElse(delta) // Overwrite key-delta with accidental.
           }
         val semitone = middleC + toneValue + octave * 12
-        midi.noteOn(semitone, ticks)
-        midi.noteOff(semitone, ticks + noteLength - 1)
+        midi.noteOn(semitone, channel, ticks)
+        midi.noteOff(semitone, channel, ticks + noteLength - 1)
         ticks + noteLength
       case ILRest => ticks + noteLength
       case ILDuration(expr, power, dots) =>
@@ -50,6 +50,15 @@ class MidiSequencer(midi: MidiWriter) {
       case ILTempo(bpm, expr) =>
         midi.changeTempo(bpm, ticks)
         next(expr, ticks)
+      case ILInstrument(program, expr) =>
+        val instrCtx = instruments.get(program) match {
+          case Some(channel) => ctx.copy(channel = channel)
+          case None =>
+            val nextChannel = instruments.values.max + 1
+            ctx.copy(channel = nextChannel, instruments = instruments + (program -> nextChannel))
+        }
+        midi.changeInstrument(program, instrCtx.channel, ticks)
+        next(expr, ticks)(instrCtx)
     }
   }
 

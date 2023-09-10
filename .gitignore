@@ -5,6 +5,8 @@
 .idea/
 target/
 
+test.mtf
+
 .npm/
 .bin/
 node_modules/

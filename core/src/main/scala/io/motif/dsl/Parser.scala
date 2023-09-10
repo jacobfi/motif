@@ -27,6 +27,8 @@ case class TimeDirective(numerator: Int, denominator: Int) extends Statement
 
 case class TempoDirective(bpm: Int) extends Statement
 
+case class InstrumentDirective(program: Int) extends Statement
+
 case class Assignment(name: String, value: Either[Expr, Function]) extends Statement
 
 case class Reference(name: String) extends Expr
@@ -39,7 +41,7 @@ class Parser extends RegexParsers with PackratParsers {
   val chord: Regex = """[A-G]#?\w*""".r
 
   lazy val directive: PackratParser[Statement] =
-    keyDir | timeDir | tempoDir
+    keyDir | timeDir | tempoDir | instrumentDir
 
   lazy val statement: PackratParser[Statement] =
     directive | declareChord | assignFunc | assignVar
@@ -95,6 +97,11 @@ class Parser extends RegexParsers with PackratParsers {
   }
 
   lazy val tempoDir: PackratParser[TempoDirective] = "@tempo" ~> number ^^ TempoDirective
+
+  lazy val instrumentDir: PackratParser[InstrumentDirective] = "@play" ~> (number | name) ^^ {
+    case num: Int => InstrumentDirective(num - 1)
+    case s: String => InstrumentDirective(instrument(s) - 1)
+  }
 
   lazy val declareChord: PackratParser[Assignment] =
     """\$::\w*""".r ~ (("=" ~ "<" ~ "$" ~ ":") ~> rep1(expr) <~ ">") ^^ {

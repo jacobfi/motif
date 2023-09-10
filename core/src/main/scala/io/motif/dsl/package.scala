@@ -11,4 +11,10 @@ package object dsl {
     case _ => None
   }
 
+  def instrument(s: String): Int = s match {
+    case "piano" => 1
+    case "violin" => 41
+    case "flute" => 74
+  }
+
 }
