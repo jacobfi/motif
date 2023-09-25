@@ -16,7 +16,7 @@ class MidiSequencer(midi: MidiWriter):
     import ctx.*
     expr match
       case ILNote(symbol, accidental) =>
-        val noteLetter = if (symbol.isLetter) symbol else key.toLetter(symbol.asDigit)
+        val noteLetter = if symbol.isLetter then symbol else key.toLetter(symbol.asDigit)
         val toneValue =
           if symbol.isDigit then key.semitone(noteLetter) + accidental.getOrElse(0) // Accidental is additive.
           else
@@ -62,7 +62,7 @@ class MidiSequencer(midi: MidiWriter):
 
   private def modifiedLength(noteLength: Int, power: Int, dots: Int): Double =
     val baseLength = noteLength * math.pow(2, power)
-    if (dots > 0) baseLength + baseLength * math.pow(2, -dots)
+    if dots > 0 then baseLength + baseLength * math.pow(2, -dots)
     else baseLength
 
   private def unitLength(expr: ILExpr)(using Context): Double = expr match

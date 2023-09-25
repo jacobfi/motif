@@ -16,7 +16,7 @@ class Key private[Key](tonic: Char, keytone: Int, scale: Array[Int]):
   private def interval(letter: Char) =
     val letterIndex = Key.noteIndex.indexOf(letter)
     val diff = letterIndex - tonicIndex
-    if (diff >= 0) scale.take(diff).sum
+    if diff >= 0 then scale.take(diff).sum
     else -scale.takeRight(-diff).sum
 
 object Key:
