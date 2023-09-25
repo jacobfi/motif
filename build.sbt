@@ -2,7 +2,7 @@ name := "motif"
 
 version := "0.1"
 
-ThisBuild / scalaVersion := "2.13.11"
+ThisBuild / scalaVersion := "3.3.1"
 ThisBuild / scalacOptions += "-deprecation"
 
 lazy val core = project

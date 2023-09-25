@@ -1,6 +1,6 @@
 package io.motif.interpreter
 
-class Key private[Key](tonic: Char, keytone: Int, scale: Array[Int]) {
+class Key private[Key](tonic: Char, keytone: Int, scale: Array[Int]):
 
   private val tonicIndex = Key.noteIndex.indexOf(tonic)
 
@@ -8,22 +8,18 @@ class Key private[Key](tonic: Char, keytone: Int, scale: Array[Int]) {
 
   def semitone(letter: Char): Int = keytone + interval(letter)
 
-  def baseAndDelta(letter: Char): (Int, Int) = {
+  def baseAndDelta(letter: Char): (Int, Int) =
     val tone = semitone(letter)
     val base = Key.CMajor.semitone(letter)
     (base, tone - base)
-  }
 
-  private def interval(letter: Char) = {
+  private def interval(letter: Char) =
     val letterIndex = Key.noteIndex.indexOf(letter)
     val diff = letterIndex - tonicIndex
     if (diff >= 0) scale.take(diff).sum
     else -scale.takeRight(-diff).sum
-  }
 
-}
-
-object Key {
+object Key:
 
   private val noteIndex = Array('c', 'd', 'e', 'f', 'g', 'a', 'b')
   private val majorScale = Array(2, 2, 1, 2, 2, 2, 1)
@@ -37,10 +33,7 @@ object Key {
   def minorOf(letter: Char, accidental: Int): Key =
     new Key(letter, CMajor.semitone(letter) + accidental, minorScale)
 
-  def ofMode(mode: String, letter: Char, accidental: Int): Key = mode match {
+  def ofMode(mode: String, letter: Char, accidental: Int): Key = mode match
     case "major" => majorOf(letter, accidental)
     case "minor" => minorOf(letter, accidental)
     case _ => throw new IllegalArgumentException
-  }
-
-}

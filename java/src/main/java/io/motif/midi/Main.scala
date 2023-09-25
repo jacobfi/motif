@@ -1,18 +1,17 @@
 package io.motif.midi
 
-import io.motif.dsl._
+import io.motif.dsl.*
 import io.motif.interpreter.MidiSequencer
 
 import scala.io.Source
 import scala.util.Using
 
-object Main {
+object Main:
 
-  def main(args: Array[String]): Unit = {
-    if (args.isEmpty) {
+  def main(args: Array[String]): Unit =
+    if args.isEmpty then
       println("Please provide a filename!")
       System.exit(0)
-    }
 
     val filename = args.head
     val input = Using(Source.fromFile(filename))(_.getLines().mkString)
@@ -30,6 +29,3 @@ object Main {
     println("Begin playback")
     val player = new JavaMidiPlayer
     player.play(midi.getSequence)
-  }
-
-}

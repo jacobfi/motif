@@ -1,6 +1,6 @@
 package io.motif.interpreter
 
-trait MidiWriter {
+trait MidiWriter:
 
   val ticksPerBeat: Int
 
@@ -11,5 +11,3 @@ trait MidiWriter {
   def changeTempo(bpm: Int, ticks: Int): Unit
 
   def changeInstrument(program: Int, channel: Int, ticks: Int): Unit
-
-}
